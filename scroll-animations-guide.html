@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scroll Animations — Implementation Guide</title>
+  <style>
+    /* ===== CSS CUSTOM PROPERTIES ===== */
+    :root {
+      --bg: #FAFAFA;
+      --surface: #FFFFFF;
+      --text: #111827;
+      --text-muted: #6B7280;
+      --border: #E5E7EB;
+      --accent: #4F46E5;
+      --code-bg: #F1F5F9;
+      --warn-bg: #FFFBEB;
+      --warn-border: #F59E0B;
+      --warn-text: #78350F;
+      --ok-bg: #F0FDF4;
+      --ok-border: #16A34A;
+      --ok-text: #14532D;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0F0F1A;
+        --surface: #1A1A2E;
+        --text: #E2E8F0;
+        --text-muted: #94A3B8;
+        --border: #2D2D44;
+        --accent: #818CF8;
+        --code-bg: #1E293B;
+        --warn-bg: #1C1408;
+        --warn-border: #D97706;
+        --warn-text: #FCD34D;
+        --ok-bg: #052E16;
+        --ok-border: #16A34A;
+        --ok-text: #86EFAC;
+      }
+    }
+
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h1 { font-size: 2rem; font-weight: 700; }
+    h2 { font-size: 1.5rem; font-weight: 700; padding-top: 2rem; margin-top: 2rem; margin-bottom: 0.75rem; }
+    h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+    p { margin-bottom: 0.9rem; }
+    ul, ol { padding-left: 1.5rem; margin-bottom: 0.9rem; }
+    li { margin-bottom: 0.3rem; }
+    strong { font-weight: 600; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+
+    /* ===== LAYOUT ===== */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 3rem;
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 5rem;
+      align-items: start;
+    }
+
+    /* ===== PAGE HEADER ===== */
+    .page-header {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 0;
+    }
+    .page-header h1 { margin-bottom: 0.4rem; }
+    .page-header .subtitle { color: var(--text-muted); font-size: 1.05rem; margin-bottom: 0.25rem; }
+    .page-header .date { font-size: 0.875rem; color: var(--text-muted); }
+
+    /* ===== TOC SIDEBAR ===== */
+    .toc-sidebar {
+      position: sticky;
+      top: 1.5rem;
+      max-height: calc(100vh - 3rem);
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1rem;
+      background: var(--surface);
+    }
+    .toc-sidebar h2 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding-top: 0;
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+    }
+    .toc-sidebar ol {
+      padding-left: 0;
+      list-style: none;
+      margin-bottom: 0;
+    }
+    .toc-sidebar ol ol {
+      padding-left: 1rem;
+      margin-top: 0.15rem;
+    }
+    .toc-sidebar li { margin-bottom: 0.2rem; }
+    .toc-sidebar a {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      display: block;
+      padding: 0.1rem 0;
+    }
+    .toc-sidebar a:hover { color: var(--accent); }
+    .toc-sidebar > ol > li > a {
+      font-weight: 600;
+      color: var(--text);
+    }
+    .toc-sidebar > ol > li > a:hover { color: var(--accent); }
+    details summary {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.875rem;
+      color: var(--text);
+      padding: 0.5rem 0;
+      list-style: none;
+    }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::before { content: "▶ "; font-size: 0.7rem; }
+    details[open] summary::before { content: "▼ "; }
+
+    /* ===== MAIN CONTENT ===== */
+    main section { margin-bottom: 0.5rem; }
+
+    /* ===== CODE BLOCKS ===== */
+    .code-block {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+    .code-block pre {
+      background: var(--code-bg);
+      padding: 1.25rem;
+      overflow-x: auto;
+      margin: 0;
+    }
+    .code-block code {
+      font-family: "SF Mono", "Fira Code", Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8125rem;
+      line-height: 1.65;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-muted);
+      z-index: 10;
+      font-family: inherit;
+    }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .copy-btn.copied { color: #16A34A; border-color: #16A34A; background: var(--ok-bg); }
+
+    /* ===== INLINE CODE ===== */
+    :not(.code-block) > pre code,
+    p code, li code, td code, th code, h3 code {
+      background: var(--code-bg);
+      padding: 0.1em 0.4em;
+      border-radius: 3px;
+      font-family: "SF Mono", "Fira Code", Menlo, Monaco, Consolas, monospace;
+      font-size: 0.875em;
+    }
+
+    /* ===== CALLOUTS ===== */
+    .warn {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      color: var(--warn-text);
+    }
+    .ok {
+      background: var(--ok-bg);
+      border: 1px solid var(--ok-border);
+      border-left: 4px solid var(--ok-border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      color: var(--ok-text);
+    }
+
+    /* ===== TABLES ===== */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th {
+      background: var(--code-bg);
+      font-weight: 600;
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    td {
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: var(--bg); }
+
+    /* ===== SECTION DIVIDER ===== */
+    .section-divider {
+      border: none;
+      border-top: 2px solid var(--border);
+      margin: 3rem 0;
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 1.5rem 1.5rem 2.5rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+      .toc-sidebar {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    /* ===== PRINT ===== */
+    @media print {
+      .toc-sidebar, .copy-btn { display: none !important; }
+      .layout { grid-template-columns: 1fr; }
+      pre { white-space: pre-wrap; }
+      body { font-size: 12pt; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Scroll Animations — Implementation Guide</h1>
+  <p class="subtitle">WordPress + Elementor Scroll Animation System v1.0 — Complete Reference &amp; Copy-Paste Toolkit</p>
+  <p class="date">Generated: March 2026</p>
+</header>
+
+<div class="layout">
+
+  <!-- ===== TOC SIDEBAR ===== -->
+  <aside class="toc-sidebar">
+    <h2>Contents</h2>
+    <details open>
+      <summary>Contents</summary>
+      <ol>
+        <li><a href="#developer">Developer Section</a>
+          <ol>
+            <li><a href="#analysis">Motion Analysis</a></li>
+            <li><a href="#css-block">CSS Code</a></li>
+            <li><a href="#js-block">JS Code</a></li>
+            <li><a href="#php-wrapper">PHP Wrapper</a></li>
+            <li><a href="#dev-guide">Developer Quick Guide</a></li>
+          </ol>
+        </li>
+        <li><a href="#user-guide">User Guide</a>
+          <ol>
+            <li><a href="#s1">1. What are scroll animations?</a></li>
+            <li><a href="#s2">2. Safety checklist</a></li>
+            <li><a href="#s3">3. Installing the CSS</a></li>
+            <li><a href="#s4">4. Installing the JS</a></li>
+            <li><a href="#s5">5. Applying animations</a></li>
+            <li><a href="#s6">6. Timing and speed</a></li>
+            <li><a href="#s7">7. Troubleshooting</a></li>
+            <li><a href="#s8">8. Remove one animation</a></li>
+            <li><a href="#s9">9. Full uninstall</a></li>
+            <li><a href="#s10">10. Quick reference card</a></li>
+          </ol>
+        </li>
+      </ol>
+    </details>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main>
+
+    <!-- ============================================================
+         DEVELOPER SECTION
+    ============================================================ -->
+    <section id="developer">
+      <h2>Developer Section</h2>
+      <p>This section contains the full source files and technical reference for the Synergy Website scroll animation system. All code is modelled on the motion patterns observed on <strong>formcarry.com</strong>.</p>
+
+      <hr class="section-divider">
+
+      <!-- MOTION ANALYSIS -->
+      <section id="analysis">
+        <h2>Formcarry.com Motion Analysis</h2>
+        <p>The following patterns were observed and catalogued from formcarry.com to inform the animation system:</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Element Type</th>
+              <th>Animation Style</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Headings / Paragraphs</td>
+              <td><code>fade-up</code></td>
+              <td>translateY 36px + opacity 0→1, fired at ~12% viewport</td>
+            </tr>
+            <tr>
+              <td>Cards / Feature blocks</td>
+              <td><code>scale-in</code></td>
+              <td>scale 0.92→1, ~80ms stagger between siblings</td>
+            </tr>
+            <tr>
+              <td>Bold hero text</td>
+              <td><code>clip-up</code></td>
+              <td>clip-path inset reveal, bottom-to-top curtain lift</td>
+            </tr>
+            <tr>
+              <td>Feature spotlights / Images</td>
+              <td><code>blur-in</code></td>
+              <td>blur 8px→0 + slight scale 1.03→1</td>
+            </tr>
+            <tr>
+              <td>Easing</td>
+              <td>Spring-like</td>
+              <td><code>cubic-bezier(0.16, 1, 0.3, 1)</code></td>
+            </tr>
+            <tr>
+              <td>Trigger point</td>
+              <td>12% visible</td>
+              <td>rootMargin -40px at bottom</td>
+            </tr>
+            <tr>
+              <td>Fire-once</td>
+              <td>Yes</td>
+              <td>No replay on scroll-up</td>
+            </tr>
+            <tr>
+              <td>Parallax</td>
+              <td>None</td>
+              <td>No parallax or scroll-linked effects observed</td>
+            </tr>
+            <tr>
+              <td>Exit animations</td>
+              <td>None</td>
+              <td>Clean entrance-only — no section exit animations</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- CSS CODE BLOCK -->
+      <section id="css-block">
+        <h2>CSS File — <code>animations.css</code></h2>
+        <p>Paste this into <strong>Elementor &gt; Custom CSS</strong> or your child theme's <code>style.css</code>. See the User Guide (Section 3) for full instructions.</p>
+        <div class="code-block">
+          <button class="copy-btn">Copy</button>
+          <pre><code>/* === ANIMATIONS.CSS === */
+/* Synergy Website — Scroll Animation System v1.0      */
+/* Modelled on formcarry.com motion patterns:          */
+/*   • fade-up on headings, paragraphs, cards          */
+/*   • scale-in on images / screenshots                */
+/*   • blur-in on feature blocks                       */
+/*   • clip-up on bold headline reveals                */
+/*   • stagger ~80 ms between sibling cards            */
+/*   • trigger at ~12 % of element visible             */
+/*   • spring-like ease, fire-once                     */
+/* --------------------------------------------------- */
+
+
+/* ================================================================
+   1. CUSTOM PROPERTIES
+   Change these two values to adjust all speeds site-wide:
+     --sg-duration : how long each animation takes  (default 0.65s)
+     --sg-ease     : the acceleration curve (leave as-is for best look)
+     --sg-distance : how far elements travel before landing (default 36px)
+   ================================================================ */
+:root {
+  --sg-duration:   0.65s;
+  --sg-ease:       cubic-bezier(0.16, 1, 0.3, 1);   /* spring-like ease-out */
+  --sg-distance:   36px;
+}
+
+
+/* ================================================================
+   2. ACCESSIBILITY — REDUCED MOTION
+   If the visitor's OS has "Reduce Motion" turned on, we skip ALL
+   animations and show every element immediately.
+   ================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  [data-animate],
+  [data-animate-group] &gt; * {
+    opacity:    1 !important;
+    transform:  none !important;
+    filter:     none !important;
+    clip-path:  none !important;
+    transition: none !important;
+    animation:  none !important;
+  }
+}
+
+
+/* ================================================================
+   3. BASE HIDDEN STATE
+   Every element tagged with data-animate starts invisible.
+   JS will add .is-visible to trigger the transition.
+   ================================================================ */
+[data-animate] {
+  opacity: 0;
+
+  /* Transition all animatable properties in one declaration.
+     --sg-delay is set by JS for staggered groups, or via
+     data-animate-delay="200" on individual elements.           */
+  transition:
+    opacity   var(--sg-duration) var(--sg-ease),
+    transform var(--sg-duration) var(--sg-ease),
+    filter    var(--sg-duration) var(--sg-ease),
+    clip-path var(--sg-duration) var(--sg-ease);
+
+  transition-delay: var(--sg-delay, 0ms);
+}
+
+
+/* ================================================================
+   4. PER-ANIMATION INITIAL TRANSFORMS
+   Only opacity + transform + filter are animated — never width /
+   height / top / left / margin — to keep every animation on the
+   GPU compositor layer and avoid layout recalc.
+   ================================================================ */
+
+/* Slide up from below (most common — headings, paragraphs, cards) */
+[data-animate="fade-up"] {
+  transform: translateY(var(--sg-distance));
+}
+
+/* Slide in from the right (e.g. right-side feature text) */
+[data-animate="fade-left"] {
+  transform: translateX(var(--sg-distance));
+}
+
+/* Slide in from the left (e.g. left-side feature text) */
+[data-animate="fade-right"] {
+  transform: translateX(calc(-1 * var(--sg-distance)));
+}
+
+/* Grow in from centre (images, UI screenshots, icon blocks) */
+[data-animate="scale-in"] {
+  transform: scale(0.92);
+}
+
+/* Soft blur to sharp (hero text, feature spotlights) */
+[data-animate="blur-in"] {
+  filter:    blur(8px);
+  transform: scale(1.03);
+}
+
+/* Curtain-lift / clip reveal (bold headlines, dividers) */
+[data-animate="clip-up"] {
+  clip-path: inset(0 0 100% 0);
+  transform: translateY(12px);
+}
+
+
+/* ================================================================
+   5. VISIBLE STATE
+   JS adds .is-visible when the element enters the viewport.
+   All animated properties return to their natural (resting) values.
+   ================================================================ */
+[data-animate].is-visible {
+  opacity:   1;
+  transform: none;
+  filter:    none;
+  clip-path: inset(0% 0 0 0);
+}</code></pre>
+        </div>
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- JS CODE BLOCK -->
+      <section id="js-block">
+        <h2>JavaScript File — <code>animations.js</code></h2>
+        <p>Paste this into <strong>Elementor &gt; Custom Code</strong> (Pro) or your theme's <code>functions.php</code> via the PHP wrapper below. See the User Guide (Section 4) for full instructions.</p>
+        <div class="code-block">
+          <button class="copy-btn">Copy</button>
+          <pre><code>/* === ANIMATIONS.JS === */
+/* Synergy Website — Scroll Animation Engine v1.0      */
+/* Vanilla JS · Zero dependencies · ~2.1 KB            */
+/*                                                     */
+/* Trigger: data-animate="fade-up|fade-left|fade-right */
+/*          |scale-in|blur-in|clip-up"                 */
+/* Group:   data-animate-group  (staggers children)    */
+/* Delay:   data-animate-delay="200"  (ms override)    */
+/* Repeat:  data-animate-once="false" (re-fires)       */
+/* ---------------------------------------------------  */
+
+(function () {
+  'use strict';
+
+  /* ----------------------------------------------------------
+     0. BAIL EARLY for users who prefer reduced motion.
+        Elements are already visible via the CSS @media rule;
+        we just skip all JS setup entirely.
+     ---------------------------------------------------------- */
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+
+  /* ----------------------------------------------------------
+     1. CONFIGURATION
+        threshold  : fraction of element that must be visible
+                     before the animation fires (0.12 = 12 %)
+        rootMargin : virtual padding on the viewport boundary.
+                     "-40px" at the bottom means the trigger
+                     fires 40 px before the element's bottom
+                     edge reaches the viewport bottom.
+     ---------------------------------------------------------- */
+  var STAGGER_STEP = 80;   /* ms added per sibling in a group */
+  var IO_OPTIONS   = {
+    threshold:  0.12,
+    rootMargin: '0px 0px -40px 0px'
+  };
+
+
+  /* ----------------------------------------------------------
+     2. SINGLE SHARED IntersectionObserver
+        One instance watches every [data-animate] on the page.
+     ---------------------------------------------------------- */
+  var observer = new IntersectionObserver(onIntersect, IO_OPTIONS);
+
+
+  /* ----------------------------------------------------------
+     3. INTERSECTION CALLBACK
+     ---------------------------------------------------------- */
+  function onIntersect(entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+
+      var el = entry.target;
+      revealElement(el);
+
+      /* Fire-once (default): stop watching after first trigger */
+      if (el.dataset.animateOnce !== 'false') {
+        observer.unobserve(el);
+      }
+    });
+  }
+
+
+  /* ----------------------------------------------------------
+     4. REVEAL ONE ELEMENT
+        • Apply will-change just before the animation so the
+          browser can promote the layer without repainting the
+          whole page.
+        • Use rAF to batch class changes and avoid layout thrash.
+        • Remove will-change on transitionend to free GPU memory.
+     ---------------------------------------------------------- */
+  function revealElement(el) {
+    el.style.willChange = 'transform, opacity, filter';
+
+    requestAnimationFrame(function () {
+      el.classList.add('is-visible');
+
+      el.addEventListener('transitionend', function onDone() {
+        el.style.willChange = '';
+        el.removeEventListener('transitionend', onDone);
+      });
+    });
+  }
+
+
+  /* ----------------------------------------------------------
+     5. STAGGER A GROUP'S DIRECT CHILDREN
+        Called on any element with [data-animate-group].
+        • If children already have data-animate → keep their
+          animation type, just add incrementing delays.
+        • If none have data-animate → auto-apply "fade-up" to
+          every direct child, then stagger.
+        • Respects each child's own data-animate-delay as a
+          base offset (stagger is added on top of it).
+     ---------------------------------------------------------- */
+  function staggerGroup(parent) {
+    /* Guard: skip if already processed (prevents double-run) */
+    if (parent.dataset.animateGroupDone) return;
+    parent.dataset.animateGroupDone = '1';
+
+    var children = Array.prototype.slice.call(parent.children);
+
+    /* Targets = children that already carry data-animate */
+    var targets = children.filter(function (c) {
+      return c.hasAttribute('data-animate');
+    });
+
+    /* If none have the attribute, auto-apply fade-up to all */
+    if (targets.length === 0) {
+      targets = children;
+      targets.forEach(function (c) {
+        if (!c.hasAttribute('data-animate')) {
+          c.setAttribute('data-animate', 'fade-up');
+        }
+      });
+    }
+
+    targets.forEach(function (c, i) {
+      var base  = parseInt(c.dataset.animateDelay || 0, 10);
+      var delay = base + i * STAGGER_STEP;
+      c.style.setProperty('--sg-delay', delay + 'ms');
+    });
+  }
+
+
+  /* ----------------------------------------------------------
+     6. REGISTER ELEMENTS INSIDE A ROOT NODE
+        • Processes groups first so stagger delays are written
+          to CSS custom properties before the observer fires.
+        • Guards against double-registration with a data flag.
+     ---------------------------------------------------------- */
+  function registerElements(root) {
+    root = root || document;
+
+    /* 6a. Stagger all groups */
+    root.querySelectorAll('[data-animate-group]').forEach(function (group) {
+      staggerGroup(group);
+    });
+
+    /* 6b. Observe every [data-animate] element */
+    root.querySelectorAll('[data-animate]').forEach(function (el) {
+      /* Skip already-registered elements */
+      if (el.dataset.animateRegistered) return;
+      el.dataset.animateRegistered = '1';
+
+      /* Apply individual delay for non-group elements */
+      if (el.dataset.animateDelay && !el.closest('[data-animate-group]')) {
+        el.style.setProperty('--sg-delay', el.dataset.animateDelay + 'ms');
+      }
+
+      observer.observe(el);
+    });
+  }
+
+
+  /* ----------------------------------------------------------
+     7. MUTATIONOBSERVER — Elementor lazy-load fallback
+        Elementor can inject new .elementor-section nodes into
+        the DOM after initial page load (e.g. infinite scroll,
+        popup builders, lazy-render sections).
+        This watcher picks up any new [data-animate] elements
+        injected after init() has already run.
+     ---------------------------------------------------------- */
+  var mutObs = new MutationObserver(function (mutations) {
+    mutations.forEach(function (m) {
+      m.addedNodes.forEach(function (node) {
+        if (node.nodeType !== 1) return; /* ignore text nodes */
+
+        /* New node itself might be animated */
+        if (node.hasAttribute && node.hasAttribute('data-animate')) {
+          if (!node.dataset.animateRegistered) {
+            node.dataset.animateRegistered = '1';
+            if (node.dataset.animateDelay && !node.closest('[data-animate-group]')) {
+              node.style.setProperty('--sg-delay', node.dataset.animateDelay + 'ms');
+            }
+            observer.observe(node);
+          }
+        }
+
+        /* New node may contain animated children */
+        if (node.querySelectorAll) {
+          node.querySelectorAll('[data-animate-group]').forEach(function (g) {
+            staggerGroup(g);
+          });
+          node.querySelectorAll('[data-animate]').forEach(function (el) {
+            if (el.dataset.animateRegistered) return;
+            el.dataset.animateRegistered = '1';
+            if (el.dataset.animateDelay && !el.closest('[data-animate-group]')) {
+              el.style.setProperty('--sg-delay', el.dataset.animateDelay + 'ms');
+            }
+            observer.observe(el);
+          });
+        }
+      });
+    });
+  });
+
+
+  /* ----------------------------------------------------------
+     8. BOOT SEQUENCE
+        • Runs on DOMContentLoaded (or immediately if DOM is
+          already ready — handles Footer JS placement).
+        • Also listens for Elementor's own "frontend init" event
+          which fires after Elementor re-renders widgets.
+        • MutationObserver watches for any further DOM changes.
+     ---------------------------------------------------------- */
+  function init() {
+    registerElements(document);
+    mutObs.observe(document.body, { childList: true, subtree: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    /* DOM already parsed (script is in footer) */
+    init();
+  }
+
+  /* Elementor fires this after its frontend module bootstraps */
+  window.addEventListener('elementor/frontend/init', function () {
+    registerElements(document);
+  });
+
+}());</code></pre>
+        </div>
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- PHP WRAPPER -->
+      <section id="php-wrapper">
+        <h2>PHP Wrapper — <code>functions.php</code></h2>
+        <p>Use this wrapper if you are installing the JS via <strong>Appearance &gt; Theme File Editor &gt; functions.php</strong> (Elementor Free). Paste the full contents of <code>animations.js</code> in place of the comment inside the <code>&lt;script&gt;</code> tags.</p>
+        <div class="code-block">
+          <button class="copy-btn">Copy</button>
+          <pre><code>&lt;?php
+function synergy_add_scroll_animations() { ?&gt;
+  &lt;script&gt;
+    /* PASTE THE FULL CONTENTS OF animations.js HERE */
+  &lt;/script&gt;
+&lt;?php }
+add_action( 'wp_footer', 'synergy_add_scroll_animations' );</code></pre>
+        </div>
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- DEVELOPER QUICK GUIDE -->
+      <section id="dev-guide">
+        <h2>Developer Quick Guide</h2>
+
+        <h3>Attributes API</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Attribute</th>
+              <th>Value(s)</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-up</code></td>
+              <td>Slides element up from 36px below + fades in. Most common — use on headings, paragraphs, and cards.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-left</code></td>
+              <td>Slides element in from the right side. Use on right-column feature text.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-right</code></td>
+              <td>Slides element in from the left side. Use on left-column feature text.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>scale-in</code></td>
+              <td>Grows element from scale 0.92 to 1. Use on images, UI screenshots, and icon blocks.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>blur-in</code></td>
+              <td>Transitions from blur(8px) to sharp + slight scale. Use on hero text and feature spotlights.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>clip-up</code></td>
+              <td>Curtain-lift clip-path reveal from bottom to top. Use on bold headlines and dividers.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-group</code></td>
+              <td>(no value needed)</td>
+              <td>Place on a parent/section element. All direct children with <code>data-animate</code> will be staggered at 80ms intervals. If no children have <code>data-animate</code>, <code>fade-up</code> is auto-applied to all direct children.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-delay</code></td>
+              <td>Number (ms), e.g. <code>200</code></td>
+              <td>Overrides or adds to the stagger delay for a single element. E.g. <code>data-animate-delay="400"</code> waits 400ms before animating.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-once</code></td>
+              <td><code>false</code></td>
+              <td>By default, animations fire once and stop. Set this to <code>false</code> to re-fire the animation every time the element re-enters the viewport on scroll-up/scroll-down.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>How to Add Attributes in Elementor</h3>
+        <ol>
+          <li>Click the element in the Elementor editor to select it.</li>
+          <li>Open the <strong>Advanced</strong> tab in the left panel.</li>
+          <li>Scroll down to <strong>Custom Attributes</strong>.</li>
+          <li>Click <strong>+ Add Row</strong>.</li>
+          <li>In the <strong>Key</strong> field enter: <code>data-animate</code></li>
+          <li>In the <strong>Value</strong> field enter: <code>fade-up</code> (or whichever animation you want)</li>
+          <li>Click <strong>Update</strong> to save.</li>
+        </ol>
+        <p>To add a delay, add another row: Key = <code>data-animate-delay</code>, Value = <code>200</code> (milliseconds).</p>
+        <p>To add a group, select the parent section/container and add: Key = <code>data-animate-group</code>, Value = (leave empty, or enter any value — the presence of the attribute is what matters).</p>
+
+        <h3>HTML Example — 3-Column Feature Section with Staggered Cards</h3>
+        <div class="code-block">
+          <button class="copy-btn">Copy</button>
+          <pre><code>&lt;!-- Parent section gets data-animate-group --&gt;
+&lt;section data-animate-group&gt;
+
+  &lt;!-- Each card gets data-animate="scale-in" --&gt;
+  &lt;!-- JS automatically staggers them 80ms apart --&gt;
+
+  &lt;div data-animate="scale-in"&gt;
+    &lt;h3&gt;Feature One&lt;/h3&gt;
+    &lt;p&gt;Description of the first feature.&lt;/p&gt;
+  &lt;/div&gt;
+
+  &lt;div data-animate="scale-in"&gt;
+    &lt;h3&gt;Feature Two&lt;/h3&gt;
+    &lt;p&gt;Description of the second feature.&lt;/p&gt;
+  &lt;/div&gt;
+
+  &lt;div data-animate="scale-in"&gt;
+    &lt;h3&gt;Feature Three&lt;/h3&gt;
+    &lt;p&gt;Description of the third feature.&lt;/p&gt;
+  &lt;/div&gt;
+
+&lt;/section&gt;
+
+&lt;!-- Result: card 1 fires at 0ms, card 2 at 80ms, card 3 at 160ms --&gt;</code></pre>
+        </div>
+
+        <h3>Timing Customisation</h3>
+        <p>All animation timing is controlled by three variables. Change them once and every animation on the site updates automatically:</p>
+        <ul>
+          <li><strong>Duration:</strong> Edit <code>--sg-duration</code> in the CSS <code>:root</code> block. Default: <code>0.65s</code>.</li>
+          <li><strong>Distance:</strong> Edit <code>--sg-distance</code> in the CSS <code>:root</code> block. Default: <code>36px</code>.</li>
+          <li><strong>Easing:</strong> Edit <code>--sg-ease</code> in the CSS <code>:root</code> block. Default: <code>cubic-bezier(0.16, 1, 0.3, 1)</code> (spring-like).</li>
+          <li><strong>Stagger step:</strong> Edit <code>STAGGER_STEP = 80</code> in <code>animations.js</code>. Default: <code>80</code> ms between siblings.</li>
+        </ul>
+
+        <h3>Observer Settings</h3>
+        <p>The <code>IntersectionObserver</code> is configured with two key values in <code>animations.js</code>:</p>
+        <ul>
+          <li><code>threshold: 0.12</code> — 12% of the element must be visible in the viewport before the animation fires. Lower values fire earlier; higher values fire later.</li>
+          <li><code>rootMargin: '0px 0px -40px 0px'</code> — Shrinks the effective viewport by 40px at the bottom. This means the animation fires only when the element is at least 40px inside the visible area, preventing immediate triggers on elements that are just barely below the fold.</li>
+        </ul>
+
+        <h3>Performance Checklist</h3>
+        <ul>
+          <li>✅ Only GPU-compositable properties are animated (<code>transform</code>, <code>opacity</code>, <code>filter</code>, <code>clip-path</code>) — no <code>width</code>, <code>height</code>, <code>top</code>, <code>left</code>, or <code>margin</code> changes that cause layout recalc.</li>
+          <li>✅ <code>will-change</code> is applied immediately before each animation and removed on <code>transitionend</code> — no permanent GPU layer promotion.</li>
+          <li>✅ A single shared <code>IntersectionObserver</code> instance watches all elements — no per-element observers.</li>
+          <li>✅ Fire-once by default — observer unregisters each element after first trigger, reducing active watchers over time.</li>
+          <li>✅ Reduced-motion users receive a complete CSS bail-out and JS bail-out — zero animation overhead.</li>
+          <li>✅ <code>requestAnimationFrame</code> is used to batch DOM class changes and avoid layout thrash.</li>
+          <li>✅ Zero external dependencies — no jQuery, no GSAP, no ScrollReveal — the full engine is ~2.1 KB.</li>
+        </ul>
+      </section>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ============================================================
+         USER GUIDE
+    ============================================================ -->
+    <section id="user-guide">
+      <h2>User Guide</h2>
+      <p>This section is written for the site owner or content manager. No coding knowledge is required. Follow each section in order the first time you set this up.</p>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 1 -->
+      <section id="s1">
+        <h2>Section 1 — What are scroll animations and what will change on your site</h2>
+
+        <h3>The "unrolling newspaper" analogy</h3>
+        <p>Imagine your website is a newspaper. Without scroll animations, the entire page appears fully printed the moment someone opens it — every headline, image, and paragraph is already sitting there waiting. With scroll animations, the newspaper unrolls itself as the reader moves down the page. Each section reveals itself at the right moment, drawing the eye forward and making the content feel alive and intentional.</p>
+
+        <h3>What your visitors will see</h3>
+        <p>After the system is installed and configured, elements on your pages will animate in as visitors scroll down:</p>
+        <ul>
+          <li><strong>Headings</strong> will gently slide up from slightly below their final position and fade into view.</li>
+          <li><strong>Paragraphs</strong> will fade in with the same smooth upward movement.</li>
+          <li><strong>Cards and feature blocks</strong> in rows will cascade in one after another — the first card appears, then 80 milliseconds later the second, then the third — creating a flowing, rhythmic reveal.</li>
+          <li><strong>Images and screenshots</strong> will grow from 92% of their size to full size, giving a subtle "settling into place" effect.</li>
+          <li><strong>Bold hero headlines</strong> can use a curtain-lift effect where the text appears to rise up from behind a hidden barrier.</li>
+        </ul>
+        <p>All animations are quick — the default duration is 0.65 seconds — and use a spring-like easing curve that feels natural rather than mechanical.</p>
+
+        <h3>Why it makes your site feel premium</h3>
+        <p>Think about a premium shop: when you push the door open, the lights are bright, the displays are arranged with care, and you feel welcomed. A site without animations is like a shop where all the stock is piled on the floor the moment you walk in. Scroll animations act like a well-trained shop assistant who presents each item to you at exactly the right moment. The content feels curated, not dumped. This is why high-end SaaS products, agencies, and premium brands consistently use this technique.</p>
+
+        <h3>What this system does NOT do</h3>
+        <ul>
+          <li>It does <strong>not</strong> change any of your content, fonts, colours, or layouts.</li>
+          <li>It does <strong>not</strong> slow down your site — the code is under 2.1 KB with zero external dependencies, and animations only run on the GPU, which is separate from the CPU that loads page content.</li>
+          <li>It does <strong>not</strong> affect visitors who have "Reduce Motion" turned on in their device's accessibility settings. Those users will see all content immediately with no animation whatsoever.</li>
+          <li>It does <strong>not</strong> affect your SEO — search engine crawlers do not render animations.</li>
+          <li>It does <strong>not</strong> add any scroll-linked parallax effects — everything is purely entrance-based.</li>
+        </ul>
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 2 -->
+      <section id="s2">
+        <h2>Section 2 — Before you start: a safety checklist</h2>
+        <p>Before making any changes to your website's code, complete this checklist. These steps protect your site from accidental breakage.</p>
+
+        <ol>
+          <li>
+            <strong>Back up the entire site.</strong>
+            <p>Use a plugin such as UpdraftPlus (free) or your hosting provider's backup feature. After the backup completes, download the backup file to your computer. Do not rely solely on a cloud backup — keep a local copy too.</p>
+            <div class="warn">⚠️ <strong>Watch out:</strong> Do this every single time before you make any code changes, even small ones. It takes two minutes and can save hours of recovery work.</div>
+          </li>
+          <li>
+            <strong>Check whether you have Elementor Free or Elementor Pro.</strong>
+            <p>Go to your WordPress dashboard, then <strong>Elementor &gt; Settings</strong>. If you can see a <strong>Custom Code</strong> tab, you have Elementor Pro. If you do not see that tab, you have Elementor Free. This matters because the JavaScript installation method differs between the two versions.</p>
+          </li>
+          <li>
+            <strong>Use a staging environment if available.</strong>
+            <p>A staging environment is a private copy of your website that is invisible to the public — like a dress rehearsal before opening night. Any changes you make on staging have no effect on the live site. Your hosting provider may offer one-click staging (common with WP Engine, Kinsta, SiteGround, and Cloudways). If staging is available, make all the changes described in this guide on staging first, verify everything works, and only then repeat the steps on the live site.</p>
+            <p>If staging is not available, that is fine — proceed directly, but be extra careful and make sure your backup is complete before you start.</p>
+          </li>
+        </ol>
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 3 -->
+      <section id="s3">
+        <h2>Section 3 — Installing the CSS</h2>
+        <p>The CSS file defines what each animation looks like and sets the default speeds and distances. You must install the CSS before the JavaScript, or elements will become permanently invisible when the JS runs.</p>
+
+        <h3>Option A — Recommended: Elementor Custom CSS</h3>
+        <ol>
+          <li>In your WordPress dashboard, go to <strong>Elementor &gt; Custom CSS</strong>.</li>
+          <li>In the large text area, paste the entire contents of the <code>animations.css</code> code block from the Developer Section above.</li>
+          <li>Click <strong>Save Changes</strong>.</li>
+        </ol>
+        <div class="ok">✅ <strong>How to verify it worked:</strong> Open your live site in a browser. Right-click anywhere on the page and choose <strong>Inspect</strong> (or press F12). In the Styles panel, use the filter/search box and type <code>sg-duration</code>. You should see <code>--sg-duration: 0.65s</code> appear in the results. If you see it, the CSS is loaded correctly.</div>
+
+        <h3>Option B: Appearance &gt; Theme File Editor &gt; style.css</h3>
+        <ol>
+          <li>In your WordPress dashboard, go to <strong>Appearance &gt; Theme File Editor</strong>.</li>
+          <li>In the file list on the right, click <strong>style.css</strong>.</li>
+          <li>Scroll to the very bottom of the file.</li>
+          <li>Paste the entire contents of the <code>animations.css</code> code block after all existing code.</li>
+          <li>Click <strong>Update File</strong>.</li>
+        </ol>
+        <div class="warn">⚠️ <strong>Watch out:</strong> Only do this in a <strong>child theme</strong>. If you edit the parent theme's <code>style.css</code>, your changes will be permanently deleted the next time the theme is updated. If you are not sure whether you have a child theme, use Option A instead.</div>
+
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 4 -->
+      <section id="s4">
+        <h2>Section 4 — Installing the JS</h2>
+
+        <div class="warn">⚠️ <strong>Watch out:</strong> Always install the CSS (Section 3) before the JavaScript. If you install the JS without the CSS, every element tagged with <code>data-animate</code> will start invisible and never appear — even after you later add the CSS, a hard reload may be needed.</div>
+
+        <h3>Option A — Preferred (Elementor Pro only): Elementor &gt; Custom Code</h3>
+        <ol>
+          <li>In your WordPress dashboard, go to <strong>Elementor &gt; Custom Code</strong>.</li>
+          <li>Click <strong>Add New</strong>.</li>
+          <li>Give the snippet a name, e.g. <code>Scroll Animation Engine</code>.</li>
+          <li>In the code editor, paste the entire contents of the <code>animations.js</code> code block from the Developer Section above.</li>
+          <li>Set <strong>Location</strong> to <strong>Body — End</strong>.</li>
+          <li>Set <strong>Status</strong> to <strong>Active</strong>.</li>
+          <li>Click <strong>Publish</strong>.</li>
+        </ol>
+        <div class="ok">✅ <strong>How to verify it worked:</strong> Open your live site in a browser. Right-click and choose <strong>Inspect</strong> (or press F12). Click the <strong>Console</strong> tab. If there are no red error messages, the script loaded successfully. You can also type <code>document.querySelectorAll('[data-animate]').length</code> in the Console — if you have already added any <code>data-animate</code> attributes to elements, a number greater than zero will appear.</div>
+
+        <h3>Option B (Elementor Free): Appearance &gt; Theme File Editor &gt; functions.php</h3>
+        <ol>
+          <li>In your WordPress dashboard, go to <strong>Appearance &gt; Theme File Editor</strong>.</li>
+          <li>In the file list on the right, click <strong>functions.php</strong>.</li>
+          <li>Scroll to the very bottom of the file.</li>
+          <li>Paste the PHP wrapper code from the <code>PHP Wrapper</code> code block in the Developer Section above.</li>
+          <li>Inside the <code>&lt;script&gt;</code> tags in that wrapper, paste the full contents of <code>animations.js</code> in place of the comment.</li>
+          <li>Click <strong>Update File</strong>.</li>
+        </ol>
+        <div class="warn">⚠️ <strong>White screen emergency fix:</strong> If your site goes blank (white screen of death) after saving <code>functions.php</code>, do not panic. Navigate directly to <code>yoursite.com/wp-admin</code> in your browser. WordPress admin usually remains accessible even when the front-end is broken. Go back to <strong>Appearance &gt; Theme File Editor &gt; functions.php</strong>, remove the code you added, and click <strong>Update File</strong>. If wp-admin is also inaccessible, restore the backup you made in Section 2.</div>
+
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 5 -->
+      <section id="s5">
+        <h2>Section 5 — How to apply animations in Elementor</h2>
+
+        <h3>Understanding data attributes — the "sticky note" analogy</h3>
+        <p>A <strong>data attribute</strong> is like a sticky note attached to an element on your page. The CSS and JavaScript code on your site reads these sticky notes and knows what to do. When you attach a sticky note that says <code>data-animate="fade-up"</code> to a heading, the animation system sees it and knows: "fade this heading up when it enters the screen." You are not writing any code — you are just attaching labels.</p>
+
+        <h3>Where to find Custom Attributes in Elementor</h3>
+        <ol>
+          <li>Click any element in the Elementor editor (e.g. a heading, image, or section) to select it.</li>
+          <li>Look at the left panel. At the top are three tabs: <strong>Content</strong>, <strong>Style</strong>, and <strong>Advanced</strong>. Click <strong>Advanced</strong>.</li>
+          <li>Scroll down in the Advanced panel until you see <strong>Custom Attributes</strong>.</li>
+          <li>Click <strong>+ Add Row</strong>. Two fields appear: <strong>Key</strong> on the left and <strong>Value</strong> on the right.</li>
+          <li>Type the attribute name in the Key field and the value in the Value field.</li>
+        </ol>
+
+        <h3>All animation attribute combinations</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Key (Attribute Name)</th>
+              <th>Value</th>
+              <th>What it does</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-up</code></td>
+              <td>Element slides up from below and fades in. Best for headings and paragraphs.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-left</code></td>
+              <td>Element slides in from the right. Best for right-column text blocks.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-right</code></td>
+              <td>Element slides in from the left. Best for left-column text blocks.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>scale-in</code></td>
+              <td>Element grows from 92% to full size. Best for images and feature cards.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>blur-in</code></td>
+              <td>Element transitions from blurry to sharp. Best for hero text and spotlights.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>clip-up</code></td>
+              <td>Curtain-lift reveal from bottom to top. Best for bold standalone headlines.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-group</code></td>
+              <td>(leave empty)</td>
+              <td>Place on a parent section. Children with <code>data-animate</code> will stagger 80ms apart.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-delay</code></td>
+              <td>e.g. <code>200</code></td>
+              <td>Adds an extra delay (in ms) before this element's animation fires.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-once</code></td>
+              <td><code>false</code></td>
+              <td>Makes the animation re-fire every time the element scrolls into view.</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-group</code> + child <code>data-animate</code></td>
+              <td>(combined)</td>
+              <td>Group on parent + animation on each child = staggered cascade.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Step-by-step example 1 — Animating a heading and paragraph</h3>
+        <ol>
+          <li>Click your <strong>Heading</strong> widget in Elementor to select it.</li>
+          <li>Go to the <strong>Advanced</strong> tab &gt; <strong>Custom Attributes</strong> &gt; <strong>+ Add Row</strong>.</li>
+          <li>Key: <code>data-animate</code> | Value: <code>fade-up</code></li>
+          <li>Click <strong>Update</strong>.</li>
+          <li>Now click the <strong>Text Editor</strong> (paragraph) widget directly below the heading.</li>
+          <li>Go to the <strong>Advanced</strong> tab &gt; <strong>Custom Attributes</strong> &gt; <strong>+ Add Row</strong>.</li>
+          <li>Key: <code>data-animate</code> | Value: <code>fade-up</code></li>
+          <li>Add a second row: Key: <code>data-animate-delay</code> | Value: <code>200</code></li>
+          <li>Click <strong>Update</strong>.</li>
+        </ol>
+        <div class="ok">✅ <strong>Self-verify:</strong> Open the live page. Scroll past the section so it's off screen, then scroll back down. The heading should fade up first, then 200ms later the paragraph fades up. If both animate at the same time, the delay attribute may not have been saved — re-check the Custom Attributes rows.</div>
+
+        <h3>Step-by-step example 2 — 3-column card cascade</h3>
+        <ol>
+          <li>Click the parent <strong>Section</strong> or <strong>Container</strong> that holds all three cards.</li>
+          <li>Go to the <strong>Advanced</strong> tab &gt; <strong>Custom Attributes</strong> &gt; <strong>+ Add Row</strong>.</li>
+          <li>Key: <code>data-animate-group</code> | Value: (leave empty)</li>
+          <li>Click <strong>Update</strong>.</li>
+          <li>Click the first card widget.</li>
+          <li>Go to the <strong>Advanced</strong> tab &gt; <strong>Custom Attributes</strong> &gt; <strong>+ Add Row</strong>.</li>
+          <li>Key: <code>data-animate</code> | Value: <code>scale-in</code></li>
+          <li>Click <strong>Update</strong>.</li>
+          <li>Repeat steps 5–8 for the second and third cards.</li>
+        </ol>
+        <div class="ok">✅ <strong>Self-verify:</strong> Open the live page and scroll to the card section. Card 1 should appear first, then card 2 appears 80ms later, then card 3 appears 80ms after card 2 — creating a flowing left-to-right cascade. If all three appear simultaneously, check that <code>data-animate-group</code> is on the <em>parent section</em> and not on one of the cards themselves.</div>
+
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 6 -->
+      <section id="s6">
+        <h2>Section 6 — Timing and speed</h2>
+
+        <h3>Understanding duration and delay</h3>
+        <p><strong>Duration</strong> is how long the animation takes from start to finish. Think of it as the speed of the animation itself. A duration of 0.65 seconds means the animation completes in just over half a second — quick enough to feel snappy but slow enough to be visible and satisfying.</p>
+        <p><strong>Delay</strong> is how long the animation waits before it starts. Think of it as an actor waiting in the wings for their cue. A delay of 200ms means the animation begins 200 milliseconds after the element enters the viewport — enough time for the previous element to have started its entrance, creating a sequential, staged feel rather than everything happening at once.</p>
+
+        <h3>The CSS custom properties (edit these to change all animations at once)</h3>
+        <div class="code-block">
+          <button class="copy-btn">Copy</button>
+          <pre><code>:root {
+  --sg-duration:   0.65s;   /* Change this to speed up or slow down all animations */
+  --sg-ease:       cubic-bezier(0.16, 1, 0.3, 1);   /* Leave this as-is for best results */
+  --sg-distance:   36px;    /* How far elements travel before landing */
+}</code></pre>
+        </div>
+
+        <h3>The JS stagger step (edit this to change cascade spacing)</h3>
+        <div class="code-block">
+          <button class="copy-btn">Copy</button>
+          <pre><code>var STAGGER_STEP = 80;   /* ms added per sibling in a group */</code></pre>
+        </div>
+
+        <h3>Common adjustments</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Goal</th>
+              <th>Change</th>
+              <th>New Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Make all animations faster</td>
+              <td><code>--sg-duration</code> in CSS <code>:root</code></td>
+              <td><code>0.45s</code></td>
+            </tr>
+            <tr>
+              <td>Make all animations slower / more dramatic</td>
+              <td><code>--sg-duration</code> in CSS <code>:root</code></td>
+              <td><code>0.85s</code></td>
+            </tr>
+            <tr>
+              <td>Elements travel a shorter distance</td>
+              <td><code>--sg-distance</code> in CSS <code>:root</code></td>
+              <td><code>20px</code></td>
+            </tr>
+            <tr>
+              <td>Elements travel a greater distance</td>
+              <td><code>--sg-distance</code> in CSS <code>:root</code></td>
+              <td><code>60px</code></td>
+            </tr>
+            <tr>
+              <td>Tighter, faster card cascade</td>
+              <td><code>STAGGER_STEP</code> in JS</td>
+              <td><code>50</code></td>
+            </tr>
+            <tr>
+              <td>Looser, slower card cascade</td>
+              <td><code>STAGGER_STEP</code> in JS</td>
+              <td><code>150</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="warn">⚠️ <strong>Watch out:</strong> When making these edits, only change the number (or the unit like <code>s</code> or <code>px</code>). Do not change the variable names, the colons, the semicolons, or anything else in the surrounding code. A single misplaced character in CSS or JS can break the entire system.</div>
+
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 7 -->
+      <section id="s7">
+        <h2>Section 7 — Troubleshooting</h2>
+        <p>If something isn't working as expected, find the problem description below and follow the steps.</p>
+
+        <h3>Problem 1 — Element is invisible / never appears</h3>
+        <p><strong>Symptom:</strong> An element you tagged with <code>data-animate</code> starts invisible and never fades in, no matter how far you scroll.</p>
+        <p><strong>Most likely cause:</strong> The JavaScript file is not loaded, so the <code>.is-visible</code> class is never added to the element.</p>
+        <p><strong>Fix:</strong></p>
+        <ol>
+          <li>Open the live page in a browser and press F12 to open Developer Tools.</li>
+          <li>Click the <strong>Console</strong> tab and look for any red error messages. A message like "Uncaught SyntaxError" or "404 (Not Found)" indicates the JS has a problem or isn't loading at all.</li>
+          <li>Try a hard reload: press <strong>Ctrl+Shift+R</strong> (Windows/Linux) or <strong>Cmd+Shift+R</strong> (Mac). This bypasses the browser cache and forces a fresh load.</li>
+          <li>In Elementor, click the affected element and check the <strong>Advanced &gt; Custom Attributes</strong> panel. Confirm that the <code>data-animate</code> attribute is saved and spelled correctly (no capital letters, no extra spaces).</li>
+          <li>If the JS was installed via Elementor Custom Code, confirm the snippet's status is set to <strong>Active</strong>.</li>
+        </ol>
+
+        <h3>Problem 2 — Animations are choppy on mobile</h3>
+        <p><strong>Symptom:</strong> Animations look smooth on a desktop computer but stutter or lag on smartphones.</p>
+        <p><strong>Cause:</strong> The <code>blur-in</code> animation is GPU-intensive. Mobile GPUs struggle with blur transitions, especially on older or mid-range devices.</p>
+        <p><strong>Fix:</strong></p>
+        <ol>
+          <li>Find any elements using <code>data-animate="blur-in"</code> and change the value to <code>data-animate="fade-up"</code> in their Custom Attributes panel.</li>
+          <li>If animations still stutter after removing blur, try increasing the duration slightly: change <code>--sg-duration</code> from <code>0.65s</code> to <code>0.8s</code> in the CSS. Slower animations are smoother on lower-powered hardware.</li>
+        </ol>
+
+        <h3>Problem 3 — Animations work in the Elementor editor but not on the live site</h3>
+        <p><strong>Symptom:</strong> You can see the animation preview inside Elementor, but on the published live site the elements either appear instantly (no animation) or remain invisible.</p>
+        <p><strong>Cause:</strong> A caching plugin or CDN is serving an old version of the page that doesn't include your CSS or JS changes.</p>
+        <p><strong>Fix:</strong></p>
+        <ol>
+          <li>Clear your WordPress cache plugin (e.g. <strong>WP Rocket: Dashboard &gt; Clear Cache</strong>; <strong>LiteSpeed Cache: LiteSpeed &gt; Purge All</strong>; <strong>W3 Total Cache: Performance &gt; Purge All Caches</strong>).</li>
+          <li>Clear your browser cache with a hard reload: <strong>Ctrl+Shift+R</strong> or <strong>Cmd+Shift+R</strong>.</li>
+          <li>If you are using a CDN (e.g. Cloudflare), log into your CDN dashboard and purge the cache for the affected URL or purge everything.</li>
+        </ol>
+
+        <h3>Problem 4 — All elements animate simultaneously instead of cascading</h3>
+        <p><strong>Symptom:</strong> You added <code>data-animate-group</code> to create a cascade, but all cards animate at exactly the same time.</p>
+        <p><strong>Most likely cause:</strong> The <code>data-animate-group</code> attribute is on one of the child cards instead of the parent section or container.</p>
+        <p><strong>Fix:</strong></p>
+        <ol>
+          <li>In Elementor, click each card and go to <strong>Advanced &gt; Custom Attributes</strong>. Remove <code>data-animate-group</code> from any card that has it.</li>
+          <li>Click the <strong>parent section or container</strong> that wraps all the cards. Go to <strong>Advanced &gt; Custom Attributes</strong> and add <code>data-animate-group</code> (with an empty value) there instead.</li>
+          <li>Click Update and reload the live page.</li>
+        </ol>
+
+        <h3>Problem 5 — White screen after pasting code</h3>
+        <p><strong>Symptom:</strong> After saving <code>functions.php</code> (or activating an Elementor Custom Code snippet), the entire site goes blank.</p>
+        <p><strong>Fix (Elementor Custom Code route):</strong></p>
+        <ol>
+          <li>Navigate to <code>yoursite.com/wp-admin</code>.</li>
+          <li>Go to <strong>Elementor &gt; Custom Code</strong>.</li>
+          <li>Find your scroll animation snippet and change its status from <strong>Active</strong> to <strong>Inactive</strong>.</li>
+          <li>Review the JS code for any syntax errors (a missing closing bracket, an extra quote mark, etc.).</li>
+        </ol>
+        <p><strong>Fix (functions.php route):</strong></p>
+        <ol>
+          <li>Navigate to <code>yoursite.com/wp-admin</code>.</li>
+          <li>Go to <strong>Appearance &gt; Theme File Editor &gt; functions.php</strong>.</li>
+          <li>Remove the code block you added.</li>
+          <li>Click <strong>Update File</strong>.</li>
+          <li>If wp-admin is also unreachable, restore the full site backup you made in Section 2.</li>
+        </ol>
+
+        <h3>Problem 6 — Animation doesn't fire on a lazy-loaded section</h3>
+        <p><strong>Symptom:</strong> Most animations work fine, but one section — usually near the bottom of a long page — never animates.</p>
+        <p><strong>Cause:</strong> Elementor sometimes lazy-loads sections that are far down the page, injecting them into the DOM after the animation script has already run its initial setup. The built-in MutationObserver in <code>animations.js</code> is designed to catch these late-arriving elements automatically.</p>
+        <p><strong>Fix (if the MutationObserver fallback isn't resolving it):</strong></p>
+        <ol>
+          <li>In your WordPress dashboard, go to <strong>Elementor &gt; Settings &gt; Advanced</strong>.</li>
+          <li>Try toggling the <strong>Optimized DOM Output</strong> setting (turn it off if it's on, or on if it's off). This changes how Elementor structures the HTML and can affect when lazy sections are injected.</li>
+          <li>Alternatively, add <code>data-animate-delay="300"</code> to the element in the problematic section — the extra delay gives Elementor time to finish rendering before the animation fires.</li>
+        </ol>
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 8 -->
+      <section id="s8">
+        <h2>Section 8 — Remove one animation</h2>
+        <p>If you decide you no longer want a specific element to animate, follow these steps to remove just that one animation while leaving the rest of the system intact.</p>
+
+        <ol>
+          <li>Open the page in <strong>Elementor</strong> and click the element you want to stop animating.</li>
+          <li>Go to the <strong>Advanced</strong> tab in the left panel.</li>
+          <li>Scroll down to <strong>Custom Attributes</strong>.</li>
+          <li>Find the row where the Key is <code>data-animate</code>. Click the <strong>minus (−) or delete (×) icon</strong> on the right side of that row to remove it.</li>
+          <li>If there is also a row for <code>data-animate-delay</code>, remove that row too.</li>
+          <li>If there is also a row for <code>data-animate-once</code>, remove that row too.</li>
+          <li>If the parent section of this element has <code>data-animate-group</code> and this was the only animated child, consider whether to remove <code>data-animate-group</code> from the parent as well.</li>
+          <li>Click <strong>Update</strong> to save your changes.</li>
+          <li>Open the live page and do a hard reload (<strong>Ctrl+Shift+R</strong> or <strong>Cmd+Shift+R</strong>).</li>
+        </ol>
+
+        <div class="ok">✅ The element will now appear immediately when the page loads, with no animation. All other elements on the page will continue to animate as before.</div>
+
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 9 -->
+      <section id="s9">
+        <h2>Section 9 — Full uninstall</h2>
+        <p>Follow these steps if you want to completely remove the scroll animation system from your site and return everything to normal.</p>
+
+        <div class="warn">⚠️ <strong>Watch out:</strong> You must remove the CSS and JS together. If you remove only the JavaScript and leave the CSS in place, all elements tagged with <code>data-animate</code> will start invisible and never appear — your site content will vanish. Always remove both files.</div>
+
+        <h3>Step 1 — Remove all data-animate attributes from your pages</h3>
+        <p>This step ensures no elements are left in a permanently-invisible state after the CSS is removed.</p>
+        <ol>
+          <li>Go through each page in Elementor and follow the steps in Section 8 to remove the <code>data-animate</code> attribute (and any <code>data-animate-delay</code>, <code>data-animate-once</code>, and <code>data-animate-group</code> attributes) from every element.</li>
+          <li>If you have a large number of animated elements, ask your developer to do a database search-replace to remove all instances of these attributes at once.</li>
+        </ol>
+
+        <h3>Step 2 — Remove the JavaScript</h3>
+        <ul>
+          <li><strong>If installed via Elementor Custom Code:</strong> Go to <strong>Elementor &gt; Custom Code</strong>, find the scroll animation snippet, and click <strong>Delete</strong> (or set Status to Inactive).</li>
+          <li><strong>If installed via functions.php:</strong> Go to <strong>Appearance &gt; Theme File Editor &gt; functions.php</strong>, find the <code>synergy_add_scroll_animations</code> function block, delete it entirely (from the opening <code>&lt;?php</code> or <code>function</code> line to the closing <code>add_action</code> line), and click <strong>Update File</strong>.</li>
+        </ul>
+
+        <h3>Step 3 — Remove the CSS</h3>
+        <ul>
+          <li><strong>If installed via Elementor Custom CSS:</strong> Go to <strong>Elementor &gt; Custom CSS</strong>, find and delete the entire animations block (everything between and including <code>/* === ANIMATIONS.CSS === */</code> and the final closing brace), and click <strong>Save Changes</strong>.</li>
+          <li><strong>If installed via style.css:</strong> Go to <strong>Appearance &gt; Theme File Editor &gt; style.css</strong>, find and delete the pasted animation code block, and click <strong>Update File</strong>.</li>
+        </ul>
+
+        <h3>Step 4 — Clear cache and verify</h3>
+        <ol>
+          <li>Clear your WordPress caching plugin (purge all).</li>
+          <li>Hard-reload each page in your browser (<strong>Ctrl+Shift+R</strong> or <strong>Cmd+Shift+R</strong>).</li>
+          <li>Verify that all page content is visible, no elements are invisible or animated, and the site behaves exactly as it did before the system was installed.</li>
+        </ol>
+
+      </section>
+
+      <hr class="section-divider">
+
+      <!-- SECTION 10 -->
+      <section id="s10">
+        <h2>Section 10 — Quick reference card</h2>
+        <p>Use this section as a fast lookup when you are working in Elementor and need to remember an attribute name or where to paste a file.</p>
+
+        <h3>Table 1 — All animation values</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Value</th>
+              <th>Best used on</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-up</code></td>
+              <td>Headings, paragraphs, general content blocks</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-left</code></td>
+              <td>Right-column feature text</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>fade-right</code></td>
+              <td>Left-column feature text</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>scale-in</code></td>
+              <td>Images, UI screenshots, icon blocks, feature cards</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>blur-in</code></td>
+              <td>Hero text, feature spotlights (avoid on mobile)</td>
+            </tr>
+            <tr>
+              <td><code>data-animate</code></td>
+              <td><code>clip-up</code></td>
+              <td>Bold standalone headlines, dividers</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-group</code></td>
+              <td>(leave empty)</td>
+              <td>Parent section/container — staggers children</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-delay</code></td>
+              <td>Number in ms (e.g. <code>200</code>)</td>
+              <td>Any element — adds extra wait before animation starts</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-once</code></td>
+              <td><code>false</code></td>
+              <td>Any element — re-fires animation on every scroll-into-view</td>
+            </tr>
+            <tr>
+              <td><code>data-animate-group</code> + child <code>data-animate</code></td>
+              <td>(combined)</td>
+              <td>Group on parent + animation type on each child = staggered cascade</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Table 2 — Where to paste each file</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Recommended location</th>
+              <th>Alternative location</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CSS (<code>animations.css</code>)</td>
+              <td><strong>Elementor &gt; Custom CSS</strong> (works with Free and Pro)</td>
+              <td><strong>Appearance &gt; Theme File Editor &gt; style.css</strong> (child theme only)</td>
+            </tr>
+            <tr>
+              <td>JS (<code>animations.js</code>)</td>
+              <td><strong>Elementor &gt; Custom Code</strong> (Pro only) — Location: Body End</td>
+              <td><strong>Appearance &gt; Theme File Editor &gt; functions.php</strong> via PHP wrapper (Free)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p><strong>Back up your site before making any changes. Every time. No exceptions.</strong></p>
+
+      </section>
+
+    </section>
+    <!-- end user-guide -->
+
+  </main>
+
+</div>
+<!-- end layout -->
+
+<footer>
+  <p>Keep this file safe — it is your complete reference. Last generated: March 2026.</p>
+</footer>
+
+<script>
+(function() {
+  document.querySelectorAll('.copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var codeEl = btn.parentElement.querySelector('code');
+      if (!codeEl) return;
+      var text = codeEl.textContent;
+      function done() {
+        btn.textContent = 'Copied \u2713';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function() { fallback(text, done); });
+      } else { fallback(text, done); }
+    });
+  });
+  function fallback(text, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); cb(); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+})();
+</script>
+
+</body>
+</html>
