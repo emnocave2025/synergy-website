@@ -1,0 +1,117 @@
+/* === ANIMATIONS.CSS === */
+/* Synergy Website — Scroll Animation System v1.0      */
+/* Modelled on formcarry.com motion patterns:          */
+/*   • fade-up on headings, paragraphs, cards          */
+/*   • scale-in on images / screenshots                */
+/*   • blur-in on feature blocks                       */
+/*   • clip-up on bold headline reveals                */
+/*   • stagger ~80 ms between sibling cards            */
+/*   • trigger at ~12 % of element visible             */
+/*   • spring-like ease, fire-once                     */
+/* --------------------------------------------------- */
+
+
+/* ================================================================
+   1. CUSTOM PROPERTIES
+   Change these two values to adjust all speeds site-wide:
+     --sg-duration : how long each animation takes  (default 0.65s)
+     --sg-ease     : the acceleration curve (leave as-is for best look)
+     --sg-distance : how far elements travel before landing (default 36px)
+   ================================================================ */
+:root {
+  --sg-duration:   0.65s;
+  --sg-ease:       cubic-bezier(0.16, 1, 0.3, 1);   /* spring-like ease-out */
+  --sg-distance:   36px;
+}
+
+
+/* ================================================================
+   2. ACCESSIBILITY — REDUCED MOTION
+   If the visitor's OS has "Reduce Motion" turned on, we skip ALL
+   animations and show every element immediately.
+   ================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  [data-animate],
+  [data-animate-group] > * {
+    opacity:    1 !important;
+    transform:  none !important;
+    filter:     none !important;
+    clip-path:  none !important;
+    transition: none !important;
+    animation:  none !important;
+  }
+}
+
+
+/* ================================================================
+   3. BASE HIDDEN STATE
+   Every element tagged with data-animate starts invisible.
+   JS will add .is-visible to trigger the transition.
+   ================================================================ */
+[data-animate] {
+  opacity: 0;
+
+  /* Transition all animatable properties in one declaration.
+     --sg-delay is set by JS for staggered groups, or via
+     data-animate-delay="200" on individual elements.           */
+  transition:
+    opacity   var(--sg-duration) var(--sg-ease),
+    transform var(--sg-duration) var(--sg-ease),
+    filter    var(--sg-duration) var(--sg-ease),
+    clip-path var(--sg-duration) var(--sg-ease);
+
+  transition-delay: var(--sg-delay, 0ms);
+}
+
+
+/* ================================================================
+   4. PER-ANIMATION INITIAL TRANSFORMS
+   Only opacity + transform + filter are animated — never width /
+   height / top / left / margin — to keep every animation on the
+   GPU compositor layer and avoid layout recalc.
+   ================================================================ */
+
+/* Slide up from below (most common — headings, paragraphs, cards) */
+[data-animate="fade-up"] {
+  transform: translateY(var(--sg-distance));
+}
+
+/* Slide in from the right (e.g. right-side feature text) */
+[data-animate="fade-left"] {
+  transform: translateX(var(--sg-distance));
+}
+
+/* Slide in from the left (e.g. left-side feature text) */
+[data-animate="fade-right"] {
+  transform: translateX(calc(-1 * var(--sg-distance)));
+}
+
+/* Grow in from centre (images, UI screenshots, icon blocks) */
+[data-animate="scale-in"] {
+  transform: scale(0.92);
+}
+
+/* Soft blur to sharp (hero text, feature spotlights) */
+[data-animate="blur-in"] {
+  filter:    blur(8px);
+  transform: scale(1.03);
+}
+
+/* Curtain-lift / clip reveal (bold headlines, dividers) */
+[data-animate="clip-up"] {
+  clip-path: inset(0 0 100% 0);
+  transform: translateY(12px);
+}
+
+
+/* ================================================================
+   5. VISIBLE STATE
+   JS adds .is-visible when the element enters the viewport.
+   All animated properties return to their natural (resting) values.
+   ================================================================ */
+[data-animate].is-visible {
+  opacity:   1;
+  transform: none;
+  filter:    none;
+  clip-path: inset(0% 0 0 0);
+}
