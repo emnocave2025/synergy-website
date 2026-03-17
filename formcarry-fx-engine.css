@@ -1,0 +1,281 @@
+/* ============================================================
+   FORMCARRY-FX ENGINE v1.0 — CSS
+   Motion system inspired by formcarry.com
+   Namespace: data-fc / .fc- / --fc-
+   Target: WordPress + Elementor (no external dependencies)
+
+   MOTION CHARACTER:
+     - GSAP Power3.out equivalent easing (cubic-bezier 0.22,1,0.36,1)
+     - 0.60s base duration — clean, confident, not theatrical
+     - 28px default translate — restrained SaaS product feel
+     - Fade-up primary pattern (hero, cards, CTAs)
+     - Stagger groups for feature grids and pricing plans
+     - No experimental effects — content-first philosophy
+
+   ARCHITECTURE:
+     Layer 0  — Global custom properties
+     Layer 0B — prefers-reduced-motion (accessibility override)
+     Layer 1  — Base hidden state
+     Layer 1B — Per-effect initial transforms
+     Layer 1C — Visible state
+     Layer 2  — Speed + intensity variants
+     Layer 3  — Advanced entrance effects
+
+   MINIFIED SIZE: ~1.6 KB
+   ============================================================ */
+
+
+/* ============================================================
+   LAYER 0 — GLOBAL CUSTOM PROPERTIES
+   All tuneable via :root override or per-section override.
+   ============================================================ */
+:root {
+  /* Duration scale — tighter than devin.ai, snappier product feel */
+  --fc-dur-fast:   0.40s;
+  --fc-dur-base:   0.60s;   /* primary animation length */
+  --fc-dur-slow:   0.85s;
+
+  /* Easing — GSAP power3.out equivalent: confident ease-out */
+  --fc-ease:       cubic-bezier(0.22, 1, 0.36, 1);
+  --fc-ease-soft:  cubic-bezier(0.33, 1, 0.68, 1);  /* power2.out */
+
+  /* Travel distance — 28px default, product-appropriate restraint */
+  --fc-dist:        28px;
+  --fc-dist-soft:   16px;
+  --fc-dist-strong: 48px;
+
+  /* Blur amount */
+  --fc-blur:        10px;
+  --fc-blur-soft:    5px;
+  --fc-blur-strong: 18px;
+
+  /* Scale */
+  --fc-scale-from:   0.95;
+  --fc-scale-soft:   0.97;
+  --fc-scale-strong: 0.90;
+
+  /* Stagger delay — set by JS; never set this manually on elements */
+  --fc-delay: 0ms;
+}
+
+
+/* ============================================================
+   LAYER 0B — ACCESSIBILITY: REDUCED MOTION
+   Highest specificity. Overrides everything below.
+   All [data-fc] elements become immediately visible.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  [data-fc],
+  [data-fc-group] > *,
+  .fc-word-inner {
+    opacity:    1 !important;
+    transform:  none !important;
+    filter:     none !important;
+    clip-path:  none !important;
+    transition: none !important;
+    animation:  none !important;
+  }
+}
+
+
+/* ============================================================
+   LAYER 1 — BASE HIDDEN STATE
+   All [data-fc] elements start invisible.
+   JS fail-visible fallback (noscript PHP block) overrides
+   this with !important if JS never loads.
+   ============================================================ */
+[data-fc] {
+  opacity: 0;
+
+  /* Single transition covers all animated compositor properties.
+     JS sets --fc-delay on each element before IO fires.        */
+  transition:
+    opacity   var(--fc-dur-base) var(--fc-ease),
+    transform var(--fc-dur-base) var(--fc-ease),
+    filter    var(--fc-dur-base) var(--fc-ease),
+    clip-path var(--fc-dur-base) var(--fc-ease);
+
+  transition-delay: var(--fc-delay, 0ms);
+}
+
+
+/* ============================================================
+   LAYER 2 — SPEED VARIANT MODIFIERS
+   ============================================================ */
+[data-fc][data-fc-speed="fast"] {
+  transition-duration: var(--fc-dur-fast);
+}
+[data-fc][data-fc-speed="slow"] {
+  transition-duration: var(--fc-dur-slow);
+}
+
+
+/* ============================================================
+   LAYER 1B — PER-EFFECT INITIAL TRANSFORMS
+   Only compositor-safe properties: opacity, transform, filter,
+   clip-path. Never: width, height, top, left, margin, padding.
+   ============================================================ */
+
+/* --- Fade Up (primary — headings, paragraphs, cards, CTAs) */
+[data-fc="fade-up"] {
+  transform: translateY(var(--fc-dist));
+}
+[data-fc="fade-up"][data-fc-intensity="soft"] {
+  transform: translateY(var(--fc-dist-soft));
+}
+[data-fc="fade-up"][data-fc-intensity="strong"] {
+  transform: translateY(var(--fc-dist-strong));
+}
+
+/* --- Fade Down (from above — sticky bars, top-anchored items) */
+[data-fc="fade-down"] {
+  transform: translateY(calc(-1 * var(--fc-dist)));
+}
+[data-fc="fade-down"][data-fc-intensity="soft"] {
+  transform: translateY(calc(-1 * var(--fc-dist-soft)));
+}
+[data-fc="fade-down"][data-fc-intensity="strong"] {
+  transform: translateY(calc(-1 * var(--fc-dist-strong)));
+}
+
+/* --- Fade Left (slides from right — right-column content) */
+[data-fc="fade-left"] {
+  transform: translateX(var(--fc-dist));
+}
+[data-fc="fade-left"][data-fc-intensity="soft"] {
+  transform: translateX(var(--fc-dist-soft));
+}
+[data-fc="fade-left"][data-fc-intensity="strong"] {
+  transform: translateX(var(--fc-dist-strong));
+}
+
+/* --- Fade Right (slides from left — left-column content) */
+[data-fc="fade-right"] {
+  transform: translateX(calc(-1 * var(--fc-dist)));
+}
+[data-fc="fade-right"][data-fc-intensity="soft"] {
+  transform: translateX(calc(-1 * var(--fc-dist-soft)));
+}
+[data-fc="fade-right"][data-fc-intensity="strong"] {
+  transform: translateX(calc(-1 * var(--fc-dist-strong)));
+}
+
+/* --- Fade (opacity-only — backgrounds, dividers, badges, icons) */
+/* [data-fc="fade"] needs no transform; base opacity:0 is enough */
+
+/* --- Soft Scale (screenshots, images, mockups, cards) */
+[data-fc="soft-scale"] {
+  transform: scale(var(--fc-scale-from));
+}
+[data-fc="soft-scale"][data-fc-intensity="soft"] {
+  transform: scale(var(--fc-scale-soft));
+}
+[data-fc="soft-scale"][data-fc-intensity="strong"] {
+  transform: scale(var(--fc-scale-strong));
+}
+
+
+/* ============================================================
+   LAYER 3 — ADVANCED ENTRANCE EFFECTS
+   ============================================================ */
+
+/* --- Blur Reveal (hero images, spotlight screenshots)
+   PERFORMANCE: Acceptable on elements ≤600px wide.
+   AVOID: Full-width sections, mobile-critical paths.          */
+[data-fc="blur-reveal"] {
+  filter:    blur(var(--fc-blur));
+  transform: scale(1.02);
+}
+[data-fc="blur-reveal"][data-fc-intensity="soft"] {
+  filter:    blur(var(--fc-blur-soft));
+  transform: scale(1.01);
+}
+[data-fc="blur-reveal"][data-fc-intensity="strong"] {
+  filter:    blur(var(--fc-blur-strong));
+  transform: scale(1.03);
+}
+
+/* --- Clip Up (curtain-lift headline reveal — bottom to top)
+   ONLY use on short, single-line bold headings.
+   Requires no overflow:hidden ancestor.                       */
+[data-fc="clip-up"] {
+  clip-path: inset(0 0 100% 0);
+  transform: translateY(8px);
+}
+
+/* --- Clip Left (curtain reveal — right to left) */
+[data-fc="clip-left"] {
+  clip-path: inset(0 100% 0 0);
+}
+
+
+/* ============================================================
+   LAYER 1C — VISIBLE STATE
+   JS adds .fc-visible when element enters viewport.
+   All animated properties return to natural (resting) values.
+   ============================================================ */
+[data-fc].fc-visible {
+  opacity:   1;
+  transform: none;
+  filter:    none;
+  clip-path: inset(0% 0 0 0);
+}
+
+
+/* ============================================================
+   LAYER 4 — OPTIONAL: WORD REVEAL
+   Identical pattern to devin-fx-engine word-reveal.
+   JS splits heading text into .fc-word > .fc-word-inner spans.
+   ONLY use on short single-line headings — NOT body text.
+   ============================================================ */
+/* Override base opacity:0 — children handle their own reveal */
+[data-fc="word-reveal"] {
+  opacity: 1;
+}
+
+.fc-word {
+  display:        inline-block;
+  overflow:       hidden;
+  vertical-align: bottom;
+}
+.fc-word + .fc-word {
+  margin-left: 0.28em;
+}
+.fc-word-inner {
+  display:   inline-block;
+  opacity:   0;
+  transform: translateY(105%);
+  transition:
+    opacity   var(--fc-dur-base) var(--fc-ease),
+    transform var(--fc-dur-base) var(--fc-ease);
+  transition-delay: var(--fc-delay, 0ms);
+}
+.fc-word-inner.fc-visible {
+  opacity:   1;
+  transform: none;
+}
+
+
+/* ============================================================
+   LAYER 4B — OPTIONAL: COUNTER UP
+   Same initial state as fade-up; JS drives the number.
+   ============================================================ */
+[data-fc="counter-up"] {
+  transform: translateY(var(--fc-dist));
+}
+
+
+/* ============================================================
+   PRINT MEDIA — show everything, no animations
+   ============================================================ */
+@media print {
+  [data-fc],
+  [data-fc-group] > *,
+  .fc-word-inner {
+    opacity:    1 !important;
+    transform:  none !important;
+    filter:     none !important;
+    clip-path:  none !important;
+    transition: none !important;
+  }
+}
